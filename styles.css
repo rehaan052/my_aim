@@ -1,11 +1,11 @@
-/* MAIN APP BACKGROUND (NBC BLUE) */
+/* MAIN APP BACKGROUND */
 .stApp {
-    background-color: #002B5B;
+    background-color: #0B3A67;
 }
 
-/* MAIN CONTAINER */
+/* MAIN CONTENT AREA */
 [data-testid="stAppViewContainer"] {
-    background-color: #002B5B;
+    background-color: #0B3A67;
 }
 
 /* HEADINGS */
@@ -13,52 +13,62 @@ h1, h2, h3, h4, h5 {
     color: white;
 }
 
-/* SIDEBAR (WHITE) */
+/* SIDEBAR (LIGHT BLUE) */
 section[data-testid="stSidebar"] {
-    background-color: white;
+    background-color: #CFE8FF;
 }
 
 /* SIDEBAR TEXT */
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] span,
-section[data-testid="stSidebar"] p,
-section[data-testid="stSidebar"] h1 {
-    color: #002B5B;
-    font-weight: 700;
+section[data-testid="stSidebar"] p {
+    color: #0B3A67;
+    font-weight: 600;
 }
 
 /* METRIC CARDS */
 [data-testid="metric-container"] {
-    background-color: white;
+    background-color: #f4f8ff;
     border-radius: 10px;
     padding: 15px;
-    border: 1px solid #e5e5e5;
+    border: none;
 }
 
-/* TABLE BACKGROUND */
+/* REMOVE TABLE BORDERS */
 .stDataFrame {
     background-color: white;
-    border-radius: 10px;
+    border: none;
 }
 
-/* DATAFRAME CONTAINER */
+/* REMOVE INTERNAL DATAFRAME BORDER */
 [data-testid="stDataFrame"] {
+    border: none !important;
     background-color: white;
+}
+
+/* REMOVE GRIDLINES */
+.stDataFrame table {
+    border-collapse: collapse;
+}
+
+.stDataFrame th,
+.stDataFrame td {
+    border: none !important;
 }
 
 /* CHART BACKGROUND */
 canvas {
     background-color: white !important;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 
-/* SELECTBOX (DROPDOWN) */
+/* SELECTBOX */
 .stSelectbox div[data-baseweb="select"] {
     background-color: white;
     border-radius: 6px;
 }
 
-/* BUTTONS (NBC YELLOW) */
+/* BUTTONS */
 .stButton button {
     background-color: #FFC400;
     color: black;

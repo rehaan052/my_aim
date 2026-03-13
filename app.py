@@ -1,19 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-
-# -----------------------------
-# Page Config
-# -----------------------------
-
-st.set_page_config(
-    page_title="AIM³ Aftermarket Intelligence",
-    layout="wide"
-)
-
-# -----------------------------
-# Load Custom CSS
-# -----------------------------
+import plotly.express as px
 
 def load_css():
     with open("styles.css") as f:
@@ -21,20 +9,26 @@ def load_css():
 
 load_css()
 
-# NBC Logo Header
-col1, col2 = st.columns([1,8])
-with col1:
-    st.image("nbc_logo.png", width=120)
+st.set_page_config(page_title="AIM³ Predictive Aftermarket", layout="wide")
 
-# -----------------------------
-# Generate Synthetic Dataset
-# -----------------------------
+st.title("AIM³: Aftermarket Intelligence & Monetization")
+st.caption("Predictive Sales through Connected Customer Data")
+
+# Sidebar Logo
+st.sidebar.image("nbc_logo.png", width=120)
+
+# st.sidebar.markdown("### AIM³ Navigation")
+# st.sidebar.markdown("Go to")
+
+# -------------------------------------------------------
+# DATA GENERATION
+# -------------------------------------------------------
 
 np.random.seed(42)
 
-regions = ["North", "South", "East", "West"]
+regions = ["North","South","East","West"]
 dealers = [f"Dealer_{i}" for i in range(1,21)]
-bearings = ["6205", "6206", "6305", "6306", "NU205"]
+bearings = ["6205","6206","6305","6306","NU205"]
 
 data = []
 
@@ -45,326 +39,366 @@ for i in range(1000):
     bearing = np.random.choice(bearings)
 
     failure_prob = np.round(np.random.rand(),2)
-    adps = np.round(np.random.rand(),2)
+    demand_prob = np.round(np.random.rand(),2)
+
     rul = np.random.randint(5,120)
+
     inventory = np.random.randint(10,150)
     demand = np.random.randint(20,200)
 
     price = np.random.randint(500,3000)
 
     data.append([
-        region,dealer,f"M{i}",bearing,
-        failure_prob,adps,rul,inventory,demand,price
+        region,dealer,f"Machine_{i}",
+        bearing,failure_prob,demand_prob,
+        rul,inventory,demand,price
     ])
 
 df = pd.DataFrame(data,columns=[
-    "Region","Dealer","Machine","Bearing",
-    "Failure Probability","ADPS",
-    "RUL","Inventory","Predicted Demand","Price"
+"Region","Dealer","Machine","Bearing",
+"Failure Probability","Demand Probability",
+"RUL","Inventory","Current Demand","Price"
 ])
 
-# -----------------------------
-# AI Scores
-# -----------------------------
+# -------------------------------------------------------
+# ANALYTICS
+# -------------------------------------------------------
 
-df["OVS"] = df["Predicted Demand"] * df["Price"]
+df["Next Demand"] = (df["Current Demand"]*(1+np.random.normal(0.1,0.05,len(df)))).astype(int)
 
-df["Demand Score"] = (
-    df["ADPS"]*0.6 +
-    df["Failure Probability"]*0.4
-).round(2)
+df["Opportunity Value"] = df["Next Demand"] * df["Price"]
 
-df["Inventory Gap"] = df["Predicted Demand"] - df["Inventory"]
+df["Inventory Gap"] = df["Next Demand"] - df["Inventory"]
 
-# -----------------------------
-# Login
-# -----------------------------
-
-if "login" not in st.session_state:
-    st.session_state.login = False
-
-if not st.session_state.login:
-
-    st.title("AIM³ Predictive Aftermarket Intelligence")
-
-    user = st.text_input("Username")
-    password = st.text_input("Password",type="password")
-
-    if st.button("Login"):
-        st.session_state.login = True
-        st.rerun()
-
-    st.stop()
-
-# -----------------------------
-# Sidebar
-# -----------------------------
-
-st.sidebar.title("AIM³ Navigation")
-
-# Optional logo
-# st.sidebar.image("nbc_logo.png", width=150)
-
-page = st.sidebar.radio(
-    "Go to",
-    [
-        "Global Dashboard",
-        "Region Explorer",
-        "Demand Intelligence",
-        "Inventory Planning",
-        "Notifications"
-    ]
+df["Inventory Status"] = np.where(
+df["Inventory Gap"] > 20,"Shortage",
+np.where(df["Inventory Gap"] < -20,"Overstock","Balanced")
 )
 
-# -----------------------------
-# Global Dashboard
-# -----------------------------
+df["Failure Risk"] = np.where(
+df["Failure Probability"] > 0.75,"Critical",
+np.where(df["Failure Probability"] > 0.5,"High","Normal")
+)
+
+df["High Risk Replacement"] = np.where(
+(df["Failure Probability"] > 0.7) | (df["RUL"] < 20),
+True,False
+)
+
+df["Sales Opportunity"] = np.where(
+(df["Failure Probability"] > 0.6) &
+(df["Demand Probability"] > 0.6),
+True,False
+)
+
+high_risk = df[df["High Risk Replacement"]]
+sales_leads = df[df["Sales Opportunity"]]
+
+# -------------------------------------------------------
+# FIND TOP OPPORTUNITY REGION
+# -------------------------------------------------------
+
+region_opportunity = df.groupby("Region")["Opportunity Value"].sum().reset_index()
+top_region = region_opportunity.sort_values("Opportunity Value",ascending=False).iloc[0]
+
+# -------------------------------------------------------
+# SIDEBAR
+# -------------------------------------------------------
+
+page = st.sidebar.radio(
+"Navigation",
+[
+"Global Dashboard",
+"Region Explorer",
+"Smart Inventory & Supply Chain",
+"Sales Opportunity Center",
+"Notification Center"
+]
+)
+
+# -------------------------------------------------------
+# GLOBAL DASHBOARD
+# -------------------------------------------------------
 
 if page == "Global Dashboard":
 
-    st.title("AIM³ Global Aftermarket Dashboard")
+    st.header("Global Aftermarket Overview")
 
-    col1,col2,col3,col4 = st.columns(4)
+    c1,c2,c3,c4 = st.columns(4)
 
-    col1.metric("Machines Monitored",len(df))
-    col2.metric("High Failure Risk",(df["Failure Probability"]>0.7).sum())
-    col3.metric("High Demand Bearings",(df["ADPS"]>0.7).sum())
-    col4.metric("Inventory Risk",(df["Inventory Gap"]>0).sum())
+    c1.metric("Machines Monitored",len(df))
+    c2.metric("Critical Failures",(df["Failure Risk"]=="Critical").sum())
+    c3.metric("Inventory Shortages",(df["Inventory Status"]=="Shortage").sum())
+    c4.metric("Opportunity Value ₹",int(df["Opportunity Value"].sum()))
 
-    st.subheader("Regional Demand Overview")
+    # Top Opportunity Region Highlight
+    st.info(
+        f"Top Opportunity Region: **{top_region['Region']}** "
+        f"with potential aftermarket value of ₹{int(top_region['Opportunity Value']):,}"
+    )
 
-    region_summary = df.groupby("Region")["Predicted Demand"].sum().reset_index()
+    st.subheader("Predictive Aftermarket Intelligence")
 
-    st.bar_chart(region_summary,x="Region",y="Predicted Demand")
+    a,b = st.columns(2)
 
-    st.subheader("Top Opportunity Regions")
+    a.metric(
+    "High Risk Customers (Potential Bearing Replacement)",
+    len(high_risk)
+    )
 
-    ovs_region = df.groupby("Region")["OVS"].sum().reset_index()
+    a.caption(f"{len(high_risk)} customers likely need bearing replacement soon.")
 
-    st.bar_chart(ovs_region,x="Region",y="OVS")
+    b.metric("Predictive Sales Opportunities",len(sales_leads))
 
-    st.subheader("Sample Dataset")
+    st.subheader("Aftermarket Demand by Region")
 
-    st.dataframe(df.head(20),use_container_width=True)
+    region_demand = df.groupby("Region")["Next Demand"].sum().reset_index()
 
-# -----------------------------
-# Region Explorer
-# -----------------------------
+    fig = px.bar(region_demand,x="Region",y="Next Demand",color="Region")
+    st.plotly_chart(fig,use_container_width=True)
+
+    selected_region = st.selectbox("Explore Region",df["Region"].unique())
+
+    region_df = df[df["Region"]==selected_region]
+
+    st.dataframe(region_df.head(20))
+
+# -------------------------------------------------------
+# REGION EXPLORER (UPDATED)
+# -------------------------------------------------------
 
 if page == "Region Explorer":
 
-    st.title("Region Market Explorer")
+    st.header("Region Market Explorer")
 
-    region = st.selectbox("Select Region",df["Region"].unique())
+    region = st.selectbox("Select Region", df["Region"].unique())
 
-    region_df = df[df["Region"]==region]
+    region_df = df[df["Region"] == region]
 
-    st.subheader(f"{region} Market Overview")
+    c1,c2,c3 = st.columns(3)
 
-    col1,col2,col3 = st.columns(3)
+    c1.metric("Machines Monitored", len(region_df))
+    c2.metric("Dealers", region_df["Dealer"].nunique())
+    c3.metric("Total Predicted Demand", int(region_df["Next Demand"].sum()))
 
-    col1.metric("Dealers",region_df["Dealer"].nunique())
-    col2.metric("Machines",len(region_df))
-    col3.metric("High Demand",(region_df["ADPS"]>0.7).sum())
+    st.subheader("Dealer Demand Analysis")
 
-    st.divider()
+    if st.button("Analyze Dealer Demand"):
 
-    st.subheader("Filters")
+        dealer_demand = region_df.groupby("Dealer")["Next Demand"].sum().reset_index()
 
-    failure_filter = st.selectbox(
-        "Failure Risk",
-        ["All","High","Medium","Low"]
+        # Percentile thresholds
+        high_threshold = dealer_demand["Next Demand"].quantile(0.75)
+        medium_threshold = dealer_demand["Next Demand"].quantile(0.40)
+
+        dealer_demand["Demand Category"] = dealer_demand["Next Demand"].apply(
+            lambda x:
+            "High Demand" if x >= high_threshold
+            else ("Medium Demand" if x >= medium_threshold else "Low Demand")
+        )
+
+        st.dataframe(dealer_demand)
+
+        st.subheader("Demand Category Distribution")
+
+        fig = px.bar(
+            dealer_demand,
+            x="Dealer",
+            y="Next Demand",
+            color="Demand Category",
+            title="Dealer Aftermarket Demand"
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.subheader("Insights")
+
+        high_count = len(dealer_demand[dealer_demand["Demand Category"]=="High Demand"])
+        medium_count = len(dealer_demand[dealer_demand["Demand Category"]=="Medium Demand"])
+        low_count = len(dealer_demand[dealer_demand["Demand Category"]=="Low Demand"])
+
+        st.info(
+            f"In region **{region}**: "
+            f"{high_count} high-demand dealers, "
+            f"{medium_count} medium-demand dealers, "
+            f"{low_count} low-demand dealers identified."
+        )
+# -------------------------------------------------------
+# SMART INVENTORY + SUPPLY CHAIN
+# -------------------------------------------------------
+
+if page == "Smart Inventory & Supply Chain":
+
+    st.header("Smart Inventory & Supply Chain Planner")
+
+    shortage = df[df["Inventory Status"]=="Shortage"]
+    overstock = df[df["Inventory Status"]=="Overstock"]
+
+    col1,col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Shortage Locations")
+        st.dataframe(shortage[
+        ["Region","Dealer","Machine","Bearing",
+        "Inventory","Next Demand","Inventory Gap"]
+        ])
+
+    with col2:
+        st.subheader("Overstock Locations")
+        st.dataframe(overstock[
+        ["Region","Dealer","Machine","Bearing",
+        "Inventory","Next Demand","Inventory Gap"]
+        ])
+
+    st.subheader("AI Suggested Inventory Transfers")
+
+    transfers = []
+
+    shortage_rows = shortage.to_dict("records")
+    overstock_rows = overstock.to_dict("records")
+
+    for s in shortage_rows:
+
+        needed = abs(s["Inventory Gap"])
+
+        for o in overstock_rows:
+
+            if o["Bearing"] == s["Bearing"] and o["Inventory Gap"] < 0:
+
+                available = abs(o["Inventory Gap"])
+
+                transfer = min(needed,available)
+
+                if transfer > 0:
+
+                    transfers.append({
+
+                    "From Dealer":o["Dealer"],
+                    "To Dealer":s["Dealer"],
+                    "Region From":o["Region"],
+                    "Region To":s["Region"],
+                    "Bearing":s["Bearing"],
+                    "Transfer Qty":transfer
+
+                    })
+
+                    needed -= transfer
+
+                if needed <= 0:
+                    break
+
+    transfer_df = pd.DataFrame(transfers)
+
+    st.dataframe(transfer_df)
+
+    if st.button("Send Inventory Transfer Orders"):
+
+        st.success("Inventory transfer orders sent to logistics system")
+
+# -------------------------------------------------------
+# SALES OPPORTUNITY CENTER (SMART VERSION)
+# -------------------------------------------------------
+
+if page == "Sales Opportunity Center":
+
+    st.header("Predictive Sales Opportunity Engine")
+
+    st.metric("High Value Leads", len(sales_leads))
+
+    st.subheader("AI Predicted Sales Opportunities")
+
+    st.dataframe(sales_leads)
+
+    # -------------------------------------------------------
+    # DEMAND CLASSIFICATION
+    # -------------------------------------------------------
+
+    dealer_demand = df.groupby("Dealer")["Next Demand"].sum().reset_index()
+
+    high_threshold = dealer_demand["Next Demand"].quantile(0.75)
+    medium_threshold = dealer_demand["Next Demand"].quantile(0.40)
+
+    dealer_demand["Demand Category"] = dealer_demand["Next Demand"].apply(
+        lambda x:
+        "High Demand" if x >= high_threshold
+        else ("Medium Demand" if x >= medium_threshold else "Low Demand")
     )
 
-    demand_filter = st.selectbox(
-        "Demand Probability",
-        ["All","High","Medium","Low"]
-    )
+    st.subheader("Dealer Demand Segmentation")
 
-    filtered = region_df.copy()
+    st.dataframe(dealer_demand)
 
-    if failure_filter == "High":
-        filtered = filtered[filtered["Failure Probability"]>0.7]
-
-    if failure_filter == "Medium":
-        filtered = filtered[
-            (filtered["Failure Probability"]>0.4) &
-            (filtered["Failure Probability"]<=0.7)
-        ]
-
-    if failure_filter == "Low":
-        filtered = filtered[filtered["Failure Probability"]<=0.4]
-
-    if demand_filter == "High":
-        filtered = filtered[filtered["ADPS"]>0.7]
-
-    if demand_filter == "Medium":
-        filtered = filtered[
-            (filtered["ADPS"]>0.4) &
-            (filtered["ADPS"]<=0.7)
-        ]
-
-    if demand_filter == "Low":
-        filtered = filtered[filtered["ADPS"]<=0.4]
-
-    st.subheader("Machines & Bearings Insights")
-
-    st.dataframe(filtered,use_container_width=True)
-
-# -----------------------------
-# Demand Intelligence
-# -----------------------------
-
-if page == "Demand Intelligence":
-
-    st.title("AIM³ Demand Intelligence Engine")
-
-    st.subheader("Regional Demand Trend")
-
-    trend = df.groupby("Region")[["ADPS","Predicted Demand","OVS"]].mean().reset_index()
-
-    st.bar_chart(trend,x="Region",y="Predicted Demand")
-
-    st.divider()
-
-    region = st.selectbox("Select Region for Dealer Analysis",df["Region"].unique())
-
-    region_df = df[df["Region"]==region]
-
-    dealer_summary = region_df.groupby("Dealer").agg({
-        "Predicted Demand":"sum",
-        "ADPS":"mean",
-        "OVS":"sum"
-    }).reset_index()
-
-    dealer_summary = dealer_summary.sort_values(
-        "Predicted Demand",
-        ascending=False
-    )
-
-    st.subheader("Dealers Likely to Generate Demand")
-
-    st.dataframe(dealer_summary,use_container_width=True)
-
-    st.divider()
-
-    dealer = st.selectbox("Select Dealer",dealer_summary["Dealer"])
-
-    dealer_data = region_df[region_df["Dealer"]==dealer]
-
-    st.subheader(f"Dealer Intelligence: {dealer}")
+    # -------------------------------------------------------
+    # ACTION BUTTONS
+    # -------------------------------------------------------
 
     col1,col2,col3,col4 = st.columns(4)
 
-    col1.metric(
-        "Total Demand",
-        int(dealer_data["Predicted Demand"].sum())
-    )
+    # SEND LEADS (HIGH DEMAND DEALERS)
+    if col1.button("Send Leads to Sales Team"):
 
-    col2.metric(
-        "Average ADPS",
-        round(dealer_data["ADPS"].mean(),2)
-    )
+        high_dealers = dealer_demand[
+            dealer_demand["Demand Category"]=="High Demand"
+        ]
 
-    col3.metric(
-        "Opportunity Value",
-        int(dealer_data["OVS"].sum())
-    )
+        st.success("Sales leads generated for high-demand dealers")
 
-    col4.metric(
-        "Machines Installed",
-        dealer_data["Machine"].nunique()
-    )
+        st.write("High Opportunity Dealers")
 
-    st.divider()
+        st.dataframe(high_dealers)
 
-    st.subheader("Machine Level Demand Signals")
+    # CRM OPPORTUNITY
+    if col2.button("Create CRM Opportunities"):
 
-    st.dataframe(dealer_data,use_container_width=True)
+        st.success("CRM opportunities created for predicted demand customers")
 
-    st.divider()
+    # SERVICE VISIT
+    if col3.button("Schedule Service Outreach"):
 
-    avg_score = dealer_data["Demand Score"].mean()
+        st.success("Service outreach scheduled for predictive maintenance")
 
-    st.subheader("AIM³ AI Final Judgement")
+    # TRIGGER NOTIFICATIONS (LOW + MEDIUM DEALERS)
+    if col4.button("Trigger Market Engagement Notifications"):
 
-    if avg_score > 0.7:
-        st.success("HIGH PROBABILITY DEALER – Immediate Sales Outreach Recommended")
+        notify_dealers = dealer_demand[
+            dealer_demand["Demand Category"].isin(
+                ["Low Demand","Medium Demand"]
+            )
+        ]
 
-    elif avg_score > 0.4:
-        st.warning("MEDIUM DEMAND – Monitor Dealer Engagement")
+        st.warning("Notifications sent to dealers requiring engagement")
 
-    else:
-        st.info("LOW DEMAND – No Immediate Action Required")
+        st.write("Dealers Notified")
 
-    st.divider()
+        st.dataframe(notify_dealers)
+# -------------------------------------------------------
+# ALERT CENTER
+# -------------------------------------------------------
 
-    st.subheader("Action Center")
+if page == "Notification Center":
 
-    col1,col2,col3,col4 = st.columns(4)
-
-    if col1.button("Send to Sales Team"):
-        st.success(f"Sales team notified for dealer {dealer}")
-
-    if col2.button("Generate Lead"):
-        st.success("CRM lead generated successfully")
-
-    if col3.button("Trigger Notification"):
-        st.warning("Dealer demand alert triggered")
-
-    if col4.button("Check Inventory"):
-
-        stock = dealer_data["Inventory"].sum()
-        demand = dealer_data["Predicted Demand"].sum()
-
-        if demand > stock:
-            st.error("Inventory Shortage Detected")
-        else:
-            st.success("Inventory Sufficient")
-
-# -----------------------------
-# Inventory Planning
-# -----------------------------
-
-if page == "Inventory Planning":
-
-    st.title("Smart Inventory Planning")
-
-    risk = df[df["Inventory Gap"]>0]
-
-    st.metric("Regions with Shortage",risk["Region"].nunique())
-
-    summary = risk.groupby(["Region","Bearing"])["Inventory Gap"].sum().reset_index()
-
-    st.dataframe(summary,use_container_width=True)
-
-    st.bar_chart(summary,x="Region",y="Inventory Gap")
-
-# -----------------------------
-# Notifications
-# -----------------------------
-
-if page == "Notifications":
-
-    st.title("AIM³ Notification Center")
+    st.header("AIM³ Proactive Alerts")
 
     alerts = df[
-        (df["Failure Probability"]>0.7) &
-        (df["ADPS"]>0.7)
+    (df["Failure Risk"]=="Critical") |
+    (df["Inventory Status"]=="Shortage")
     ]
 
     for _,row in alerts.head(10).iterrows():
 
-        st.error(
-            f"""
-HIGH ALERT  
+        st.warning(f"""
+⚠ ALERT
 
-Machine: {row['Machine']}  
-Bearing: {row['Bearing']}  
-Region: {row['Region']}  
+Machine: {row['Machine']}
 
-Failure Probability: {row['Failure Probability']}  
-Demand Probability: {row['ADPS']}  
-Opportunity Value: ₹{row['OVS']}
-"""
-        )
+Dealer: {row['Dealer']}
+
+Region: {row['Region']}
+
+Failure Risk: {row['Failure Risk']}
+
+Inventory Status: {row['Inventory Status']}
+
+Recommended Action:
+Ensure spare bearing availability and schedule maintenance.
+""")
